@@ -134,8 +134,8 @@ const updateProfile = async (req, res) => {
 const bookAppointment = async (req, res) => {
 
     try {
-
-        const { userId, docId, slotDate, slotTime } = req.body
+         
+        const { userId, docId, slotDate, slotTime,isOnlineAppointment } = req.body
         const docData = await doctorModel.findById(docId).select("-password")
 
         if (!docData.available) {
@@ -169,7 +169,8 @@ const bookAppointment = async (req, res) => {
             amount: docData.fees,
             slotTime,
             slotDate,
-            date: Date.now()
+            date: Date.now(),
+            isOnlineAppointment
         }
 
         const newAppointment = new appointmentModel(appointmentData)
@@ -188,37 +189,22 @@ const bookAppointment = async (req, res) => {
 }
 
 // API to cancel appointment
-const cancelAppointment = async (req, res) => {
+export const cancelAppointment = async (req, res) => {
     try {
-
-        const { userId, appointmentId } = req.body
-        const appointmentData = await appointmentModel.findById(appointmentId)
-
-        // verify appointment user 
-        if (appointmentData.userId !== userId) {
-            return res.json({ success: false, message: 'Unauthorized action' })
+        const { appointmentId } = req.body;
+        const appointment = await appointmentModel.findByIdAndUpdate(
+            appointmentId,
+            { cancelled: true },
+            { new: true }
+        );
+        if (!appointment) {
+            return res.json({ success: false, message: "Appointment not found" });
         }
-
-        await appointmentModel.findByIdAndUpdate(appointmentId, { cancelled: true })
-
-        // releasing doctor slot 
-        const { docId, slotDate, slotTime } = appointmentData
-
-        const doctorData = await doctorModel.findById(docId)
-
-        let slots_booked = doctorData.slots_booked
-
-        slots_booked[slotDate] = slots_booked[slotDate].filter(e => e !== slotTime)
-
-        await doctorModel.findByIdAndUpdate(docId, { slots_booked })
-
-        res.json({ success: true, message: 'Appointment Cancelled' })
-
+        res.json({ success: true, message: "Appointment cancelled", appointment });
     } catch (error) {
-        console.log(error)
-        res.json({ success: false, message: error.message })
+        res.status(500).json({ success: false, message: error.message });
     }
-}
+};
 
 // API to get user appointments for frontend my-appointments page
 const listAppointment = async (req, res) => {
@@ -343,6 +329,45 @@ const verifyStripe = async (req, res) => {
 
 }
 
+
+// API to book online appointment 
+const bookOnlineAppointment = async (req, res) => {
+    // try {
+    //     const { userId, docId, slotDate, slotTime } = req.body   // online ke liye basic fields
+
+    //     const docData = await doctorModel.findById(docId).select("-password")
+    //     if (!docData.available) {
+    //         return res.json({ success: false, message: 'Doctor Not Available' })
+    //     }
+
+    //     const userData = await userModel.findById(userId).select("-password")
+
+    //     delete docData.slots_booked   // online case me slots kaam nahi aayenge
+
+    //     const appointmentData = {
+    //         userId,
+    //         docId,
+    //         userData,
+    //         docData,
+    //         amount: docData.fees,
+    //         slotTime,
+    //         slotDate,
+    //         isOnlineAppointment: true,   // ✅ fix online
+    //         date: Date.now()
+    //     }
+
+    //     const newAppointment = new appointmentModel(appointmentData)
+    //     await newAppointment.save()
+
+    //     res.json({ success: true, message: 'Online Appointment Booked', appointment: newAppointment })
+
+    // } catch (error) {
+    //     console.log(error)
+    //     res.json({ success: false, message: error.message })
+    // }
+}
+
+
 export {
     loginUser,
     registerUser,
@@ -350,9 +375,9 @@ export {
     updateProfile,
     bookAppointment,
     listAppointment,
-    cancelAppointment,
     paymentRazorpay,
     verifyRazorpay,
     paymentStripe,
-    verifyStripe
+    verifyStripe,
+    bookOnlineAppointment
 }
